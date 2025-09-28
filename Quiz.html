@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Data Analytics Quiz - Dashboard</title>
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #f5f7fa; }
+    header { background: #4a90e2; color: white; padding: 15px; text-align: center; }
+    .container { display: flex; }
+    .quiz-section { flex: 2; padding: 20px; }
+    .dashboard { flex: 1; background: #fff; padding: 20px; border-left: 2px solid #ddd; }
+    .question { font-size: 18px; margin: 20px 0; font-weight: bold; }
+    button { padding: 10px 15px; margin: 5px; cursor: pointer; border: none; border-radius: 6px; background: #4a90e2; color: white; }
+    button:hover { background: #357ab8; }
+    #timer { font-size: 22px; font-weight: bold; color: red; margin: 10px 0; }
+    #score { font-size: 20px; margin: 10px 0; }
+    h2 { margin-top: 0; }
+    .leaderboard-entry { padding: 5px; border-bottom: 1px solid #eee; }
+    .highlight { background: #d1ecf1; }
+    .stats { background: #f0f8ff; padding: 10px; margin-top: 10px; border-radius: 6px; }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>Data Analytics Quiz</h1>
+</header>
+
+<div class="container">
+
+  <!-- Quiz Section -->
+  <div class="quiz-section">
+    <div id="nameInput">
+      <input type="text" id="playerName" placeholder="Enter your name">
+      <button onclick="startQuiz()">Start Quiz</button>
+    </div>
+
+    <div id="game" style="display:none;">
+      <div id="timer">Time: 60</div>
+      <div id="score">Score: 0</div>
+      <div id="quiz"></div>
+    </div>
+  </div>
+
+  <!-- Dashboard Section -->
+  <div class="dashboard">
+    <h2>📊 Live Leaderboard</h2>
+    <div id="leaderboard"></div>
+
+    <h2>📈 Stats</h2>
+    <div class="stats">
+      <p>Total Players: <span id="totalPlayers">0</span></p>
+      <p>Average Score: <span id="avgScore">0</span></p>
+      <p>Top Scorer: <span id="topScorer">N/A</span></p>
+    </div>
+  </div>
+</div>
+
+<!-- Firebase SDK -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-app.js";
+  import { getDatabase, ref, set, update, onValue } from "https://www.gstatic.com/firebasejs/10.12.4/firebase-database.js";
+
+  // 🔹 Firebase config added
+  const firebaseConfig = {
+    apiKey: "AIzaSyDwpxiAzaoCZFVYTF1ow9McHhyUZCyHG48",
+    authDomain: "data-analytics-quiz-3c21a.firebaseapp.com",
+    databaseURL: "https://data-analytics-quiz-3c21a-default-rtdb.firebaseio.com",
+    projectId: "data-analytics-quiz-3c21a",
+    storageBucket: "data-analytics-quiz-3c21a.firebasestorage.app",
+    messagingSenderId: "961014536439",
+    appId: "1:961014536439:web:ea2ba44b6b8e48fc4d1bf2",
+    measurementId: "G-SZE7Z1NQ81"
+  };
+
+  // Initialize Firebase
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
+
+  // Quiz Questions
+  const questions = [
+    { q: "Which of these is NOT a data type in analytics?", options: ["Nominal", "Ordinal", "Cardinal", "Relational"], answer: 2 },
+    { q: "What does ETL stand for?", options: ["Extract Transform Load", "Evaluate Test Learn", "Execute Transfer Logic"], answer: 0 },
+    { q: "Which tool is widely used for data visualization?", options: ["TensorFlow", "Tableau", "NumPy"], answer: 1 },
+    { q: "Which is a Python library for data analysis?", options: ["NumPy", "Pandas", "Seaborn", "All of the above"], answer: 3 },
+    { q: "Which SQL command retrieves data?", options: ["SELECT", "INSERT", "UPDATE", "DELETE"], answer: 0 },
+    { q: "Best chart for trends over time?", options: ["Bar", "Pie", "Line", "Scatter"], answer: 2 },
+    { q: "Big Data is defined by 3Vs: Volume, Velocity, and?", options: ["Value", "Variety", "Validity"], answer: 1 },
+    { q: "Which is NOT supervised learning?", options: ["Regression", "Classification", "Clustering", "Decision Tree"], answer: 2 },
+    { q: "Most popular language for analytics?", options: ["Python", "C++", "Java"], answer: 0 },
+    { q: "Which is NoSQL database?", options: ["MySQL", "MongoDB", "PostgreSQL"], answer: 1 },
+    { q: "Excel function for average?", options: ["=SUM()", "=AVERAGE()", "=MEAN()"], answer: 1 },
+    { q: "Data cleaning is also called?", options: ["Data Wrangling", "Data Mining", "Data Visualization"], answer: 0 },
+    { q: "p-value < 0.05 means?", options: ["Significant", "Insignificant", "Always True"], answer: 0 },
+    { q: "Which is NOT a BI tool?", options: ["Power BI", "Tableau", "C++"], answer: 2 },
+    { q: "Which is unstructured data?", options: ["CSV", "Database", "Video"], answer: 2 },
+    { q: "Data mining focuses on?", options: ["Predicting future", "Finding patterns", "Storage"], answer: 1 },
+    { q: "Algorithm for classification?", options: ["KNN", "Linear Regression", "PCA"], answer: 0 },
+    { q: "Cloud data warehouse?", options: ["Snowflake", "Excel", "MongoDB"], answer: 0 },
+    { q: "Measure of spread?", options: ["Mean", "Median", "Standard Deviation"], answer: 2 },
+    { q: "Dashboard in analytics is used for?", options: ["Coding", "Visualization", "Storage"], answer: 1 }
+  ];
+
+  let currentQ = 0, score = 0, timeLeft = 60, playerName = "";
+
+  const quizDiv = document.getElementById("quiz");
+  const scoreDiv = document.getElementById("score");
+  const leaderboardDiv = document.getElementById("leaderboard");
+
+  // Start Quiz
+  window.startQuiz = function() {
+    playerName = document.getElementById("playerName").value.trim();
+    if (!playerName) { alert("Enter your name!"); return; }
+
+    document.getElementById("nameInput").style.display = "none";
+    document.getElementById("game").style.display = "block";
+
+    // Save player
+    set(ref(db, "players/" + playerName), { score: 0 });
+
+    // Timer
+    const timer = setInterval(() => {
+      document.getElementById("timer").innerText = "Time: " + timeLeft;
+      if (timeLeft <= 0 || currentQ >= questions.length) {
+        clearInterval(timer);
+        endQuiz();
+      }
+      timeLeft--;
+    }, 1000);
+
+    loadQuestion();
+    listenLeaderboard();
+  }
+
+  // Load Question
+  function loadQuestion() {
+    if (currentQ >= questions.length) return endQuiz();
+    let q = questions[currentQ];
+    quizDiv.innerHTML = `
+      <div class='question'>Q${currentQ + 1}. ${q.q}</div>
+      ${q.options.map((opt, i) => `<button onclick="checkAnswer(${i})">${opt}</button>`).join("")}
+    `;
+  }
+
+  // Check Answer
+  window.checkAnswer = function(selected) {
+    if (selected === questions[currentQ].answer) {
+      score++;
+      scoreDiv.innerText = "Score: " + score;
+      update(ref(db, "players/" + playerName), { score: score });
+    }
+    currentQ++;
+    loadQuestion();
+  }
+
+  // End Quiz
+  function endQuiz() {
+    quizDiv.innerHTML = "<h2>Quiz Finished!</h2><p>Your final score: " + score + "</p>";
+  }
+
+  // Leaderboard + Stats
+  function listenLeaderboard() {
+    const playersRef = ref(db, "players");
+    onValue(playersRef, (snapshot) => {
+      let data = snapshot.val() || {};
+      let leaderboard = Object.entries(data).sort((a, b) => b[1].score - a[1].score);
+
+      // Leaderboard
+      leaderboardDiv.innerHTML = leaderboard
+        .map(([name, info], i) => `<div class="leaderboard-entry ${name === playerName ? 'highlight' : ''}">
+          ${i+1}. ${name} - ${info.score}
+        </div>`).join("");
+
+      // Stats
+      let total = leaderboard.length;
+      let totalScore = leaderboard.reduce((sum, [,p]) => sum + p.score, 0);
+      let avg = total ? (totalScore / total).toFixed(2) : 0;
+      let top = leaderboard[0] ? leaderboard[0][0] : "N/A";
+
+      document.getElementById("totalPlayers").innerText = total;
+      document.getElementById("avgScore").innerText = avg;
+      document.getElementById("topScorer").innerText = top;
+    });
+  }
+</script>
+</body>
+</html>
+
